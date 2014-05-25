@@ -36,10 +36,20 @@ class LoginApi(override implicit val env: RuntimeEnvironment[BasicProfile]) exte
  *
  * @tparam U The application user type
  */
+/**
+ * MWH: This is a partially implemented trait.
+ * @tparam U
+ */
 trait BaseLoginApi[U] extends SecureSocial[U] {
 
   import play.api.libs.json._
 
+  /**
+   * MWH: the case class TokenResponse means that val x = Token("myToken", 9/11/2014); println(x.token) will work because
+   * case class constructor parameters are accessible as public variables
+   * @param token
+   * @param expiresOn
+   */
   case class TokenResponse(token: String, expiresOn: DateTime)
 
   implicit val jodaDateWrites: Writes[org.joda.time.DateTime] = new Writes[org.joda.time.DateTime] {
