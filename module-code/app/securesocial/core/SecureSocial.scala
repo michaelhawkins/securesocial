@@ -45,7 +45,7 @@ trait SecureSocial[U] extends Controller {
    */
   protected val notAuthenticatedJson =  Unauthorized(Json.toJson(Map("error"->"Credentials required"))).as(JSON)
   protected val notAuthorizedJson = Forbidden(Json.toJson(Map("error" -> "Not authorized"))).as(JSON)
-  protected def notAuthorizedPage(): Html = securesocial.views.html.notAuthorized()
+  protected def notAuthorizedPage()(implicit request: RequestHeader): Html = securesocial.views.html.notAuthorized()
 
   protected def notAuthenticatedResult[A](implicit request: Request[A]): Future[SimpleResult] = {
     Future.successful {
@@ -53,7 +53,7 @@ trait SecureSocial[U] extends Controller {
         case Accepts.Json() => notAuthenticatedJson
         case Accepts.Html() => Redirect(env.routes.loginPageUrl).
           flashing("error" -> Messages("securesocial.loginRequired"))
-          .withSession(session + (SecureSocial.OriginalUrlKey -> request.uri))
+          .withSession(request.session + (SecureSocial.OriginalUrlKey -> request.uri))
         case _ => Unauthorized("Credentials required")
       }
     }
@@ -132,7 +132,7 @@ trait SecureSocial[U] extends Controller {
       }
     }
 
-    override protected def invokeBlock[A](request: Request[A],
+    override def invokeBlock[A](request: Request[A],
                                           block: (SecuredRequest[A]) => Future[SimpleResult]): Future[SimpleResult] =
     {
       invokeSecuredBlock(authorize, request, block)
@@ -152,7 +152,7 @@ trait SecureSocial[U] extends Controller {
    * The UserAwareAction builder
    */
   class UserAwareActionBuilder extends ActionBuilder[({ type R[A] = RequestWithUser[A] })#R] {
-    protected def invokeBlock[A](request: Request[A],
+   override def invokeBlock[A](request: Request[A],
                                  block: (RequestWithUser[A]) => Future[SimpleResult]): Future[SimpleResult] =
     {
       import ExecutionContext.Implicits.global
@@ -212,5 +212,22 @@ object SecureSocial {
   val enableRefererAsOriginalUrl = {
     import play.api.Play
     Play.current.configuration.getBoolean("securesocial.enableRefererAsOriginalUrl").getOrElse(false)
+  }
+
+  /**
+   * Returns the current user. Invoke this only if you are executing code
+   * without a SecuredRequest or UserAwareRequest available. For most cases what SecuredAction or UserAwareAction
+   * gives you will be enough.
+   *
+   * @param request the current request
+   * @param env the current environment
+   * @tparam U the user type
+   * @return a future with an option user
+   */
+  def currentUser[U](implicit request: RequestHeader, env: RuntimeEnvironment[U], ec: ExecutionContext): Future[Option[U]] = {
+    env.authenticatorService.fromRequest.map {
+      case Some(authenticator) if authenticator.isValid => Some(authenticator.user)
+      case _ => None
+    }
   }
 }

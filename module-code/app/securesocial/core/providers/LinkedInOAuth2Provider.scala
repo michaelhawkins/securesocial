@@ -17,34 +17,31 @@
 package securesocial.core.providers
 
 import securesocial.core._
-import play.api.Logger
-import LinkedInOAuth2Provider._
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.providers.LinkedInOAuth2Provider._
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A LinkedIn Provider (OAuth2)
  */
 class LinkedInOAuth2Provider(routesService: RoutesService,
-                             httpService: HttpService,
                              cacheService: CacheService,
-                             settings: OAuth2Settings = OAuth2Settings.forProvider(LinkedInOAuth2Provider.LinkedIn))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                             client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   override val id = LinkedInOAuth2Provider.LinkedIn
 
   override def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
+    import scala.concurrent.ExecutionContext.Implicits.global
     val accessToken = info.accessToken
-    httpService.url(LinkedInOAuth2Provider.Api + accessToken).get().map {
-      response =>
-        val me = response.json
+    client.retrieveProfile(LinkedInOAuth2Provider.Api + accessToken).map { me =>
         (me \ ErrorCode).asOpt[Int] match {
           case Some(error) => {
             val message = (me \ Message).asOpt[String]
             val requestId = (me \ RequestId).asOpt[String]
             val timestamp = (me \ Timestamp).asOpt[String]
-            Logger.error(
+            logger.error(
               s"Error retrieving information from LinkedIn. Error code: $error, requestId: $requestId, message: $message, timestamp: $timestamp"
             )
             throw new AuthenticationException()
@@ -62,7 +59,7 @@ class LinkedInOAuth2Provider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e  =>
-        Logger.error("[securesocial] error retrieving profile information from LinkedIn", e)
+        logger.error("[securesocial] error retrieving profile information from LinkedIn", e)
         throw new AuthenticationException()
     }
   }

@@ -17,9 +17,14 @@
 package controllers;
 
 import play.Logger;
+import play.libs.F;
+import play.mvc.Controller;
 import play.mvc.Result;
 import securesocial.core.BasicProfile;
+import securesocial.core.RuntimeEnvironment;
 import securesocial.core.java.SecureSocial;
+import securesocial.core.java.SecuredAction;
+import securesocial.core.java.UserAwareAction;
 import service.DemoUser;
 import views.html.index;
 import views.html.linkResult;
@@ -28,8 +33,19 @@ import views.html.linkResult;
 /**
  * A sample controller
  */
-public class Application extends SecureSocial {
+public class Application extends Controller {
     public static Logger.ALogger logger = Logger.of("application.controllers.Application");
+    private RuntimeEnvironment env;
+
+    /**
+     * A constructor needed to get a hold of the environment instance.
+     * This could be injected using a DI framework instead too.
+     *
+     * @param env
+     */
+    public Application(RuntimeEnvironment env) {
+        this.env = env;
+    }
     /**
      * This action only gets called if the user is logged in.
      *
@@ -42,7 +58,7 @@ public class Application extends SecureSocial {
             logger.debug("access granted to index");
         }
         DemoUser user = (DemoUser) ctx().args.get(SecureSocial.USER_KEY);
-        return ok(index.render(user, env()));
+        return ok(index.render(user, SecureSocial.<DemoUser>env()));
     }
 
     @UserAwareAction
@@ -73,5 +89,25 @@ public class Application extends SecureSocial {
     public Result linkResult() {
         DemoUser current = (DemoUser) ctx().args.get(SecureSocial.USER_KEY);
         return ok(linkResult.render(current, current.identities));
+    }
+
+    /**
+     * Sample use of SecureSocial.currentUser. Access the /current-user to test it
+     */
+    public F.Promise<Result> currentUser() {
+        return SecureSocial.currentUser(env).map( new F.Function<Object, Result>() {
+            @Override
+            public Result apply(Object maybeUser) throws Throwable {
+                String id;
+
+                if ( maybeUser != null ) {
+                    DemoUser user = (DemoUser) maybeUser;
+                    id = user.main.userId();
+                } else {
+                    id = "not available. Please log in.";
+                }
+                return ok("your id is " + id);
+            }
+        });
     }
 }

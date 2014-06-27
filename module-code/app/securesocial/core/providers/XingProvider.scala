@@ -14,25 +14,22 @@
  * limitations under the License.
  *
  */
-
-
 package securesocial.core.providers
 
+import play.api.libs.json.JsObject
 import securesocial.core._
-import play.api.libs.oauth.{RequestToken, OAuthCalculator}
-import play.api.Logger
-import XingProvider._
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.providers.XingProvider._
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A Xing Provider
  */
 class XingProvider(
         routesService: RoutesService,
-        httpService: HttpService,
         cacheService: CacheService,
-        client: OAuth1Client = new OAuth1Client.Default(ServiceInfoHelper.forProvider(VkProvider.Vk))
+        client: OAuth1Client
       ) extends OAuth1Provider(
         routesService,
         cacheService,
@@ -42,23 +39,19 @@ class XingProvider(
   override val id = XingProvider.Xing
 
   override  def fillProfile(info: OAuth1Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
-    httpService.url(XingProvider.VerifyCredentials).sign(
-      OAuthCalculator(client.serviceInfo.key,
-      RequestToken(info.token, info.secret))
-    ).get().map { response =>
-      val me = response.json
-
-      val userId = (me \\ Id ).head.as[String]
-      val displayName = (me \\ Name).head.asOpt[String]
-      val lastName = (me \\ LastName).head.asOpt[String]
-      val firstName = (me \\ FirstName).head.asOpt[String]
-      val profileImage = (me \\ Large ).head.asOpt[String]
-      val email = (me  \\ ActiveEmail).head.asOpt[String]
+    import scala.concurrent.ExecutionContext.Implicits.global
+    client.retrieveProfile(XingProvider.VerifyCredentials,info).map { json=>
+      val me = (json \ Users).as[Seq[JsObject]].head
+      val userId = (me \ Id).as[String]
+      val displayName = (me \ Name).asOpt[String]
+      val lastName = (me \ LastName).asOpt[String]
+      val firstName = (me \ FirstName).asOpt[String]
+      val profileImage = (me \ ProfileImage \ Large).asOpt[String]
+      val email = (me  \ ActiveEmail).asOpt[String]
       BasicProfile(id, userId, displayName, firstName, lastName, email, profileImage, authMethod, Some(info))
     } recover {
       case e =>
-        Logger.error("[securesocial] error retrieving profile information from Xing", e)
+        logger.error("[securesocial] error retrieving profile information from Xing", e)
         throw new AuthenticationException()
     }
   }

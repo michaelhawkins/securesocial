@@ -16,23 +16,20 @@
  */
 package securesocial.core.providers
 
-import securesocial.core._
-import play.api.Logger
 import play.api.libs.ws.Response
-import securesocial.core.AuthenticationException
-import scala.Some
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core._
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A GitHub provider
  *
  */
 class GitHubProvider(routesService: RoutesService,
-                     httpService: HttpService,
                      cacheService: CacheService,
-                     settings: OAuth2Settings = OAuth2Settings.forProvider(GitHubProvider.GitHub))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                     client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val GetAuthenticatedUser = "https://api.github.com/user?access_token=%s"
   val AccessToken = "access_token"
@@ -50,7 +47,7 @@ class GitHubProvider(routesService: RoutesService,
         .map( r => (r(0), r(1)))(collection.breakOut)
     val accessToken = values.get(OAuth2Constants.AccessToken)
     if ( accessToken.isEmpty ) {
-      Logger.error(s"[securesocial] did not get accessToken from $id")
+      logger.error(s"[securesocial] did not get accessToken from $id")
       throw new AuthenticationException()
     }
     OAuth2Info(
@@ -62,13 +59,11 @@ class GitHubProvider(routesService: RoutesService,
   }
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
-    httpService.url(GetAuthenticatedUser.format(info.accessToken)).get().map {
-      response =>
-        val me = response.json
+    import scala.concurrent.ExecutionContext.Implicits.global
+    client.retrieveProfile(GetAuthenticatedUser.format(info.accessToken)).map { me =>
         (me \ Message).asOpt[String] match {
           case Some(msg) =>
-            Logger.error(s"[securesocial] error retrieving profile information from GitHub. Message = $msg")
+            logger.error(s"[securesocial] error retrieving profile information from GitHub. Message = $msg")
             throw new AuthenticationException()
           case _ =>
             val userId = (me \ Id).as[Int]
@@ -80,7 +75,7 @@ class GitHubProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e  =>
-        Logger.error( "[securesocial] error retrieving profile information from github", e)
+        logger.error( "[securesocial] error retrieving profile information from github", e)
         throw new AuthenticationException()
     }
   }

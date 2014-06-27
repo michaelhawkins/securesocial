@@ -16,21 +16,20 @@
  */
 package securesocial.core.providers
 
-import play.api.Logger
 import play.api.libs.json.JsObject
-import securesocial.core._
 import play.api.libs.ws.Response
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core._
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A Facebook Provider
  */
 class FacebookProvider(routesService: RoutesService,
-                       httpService: HttpService,
                        cacheService: CacheService,
-                       settings: OAuth2Settings = OAuth2Settings.forProvider(FacebookProvider.Facebook))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                       client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val MeApi = "https://graph.facebook.com/me?fields=name,first_name,last_name,picture,email&return_ssl_resources=1&access_token="
   val Error = "error"
@@ -55,22 +54,20 @@ class FacebookProvider(routesService: RoutesService,
         case Array(AccessToken, token, Expires, expiresIn) => OAuth2Info(token, None, Some(expiresIn.toInt))
         case Array(AccessToken, token) => OAuth2Info(token)
         case _ =>
-          Logger.error("[securesocial] invalid response format for accessToken")
+          logger.error("[securesocial] invalid response format for accessToken")
           throw new AuthenticationException()
     }
   }
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
+    import scala.concurrent.ExecutionContext.Implicits.global
     val accessToken = info.accessToken
-    httpService.url(MeApi + accessToken).get().map {
-      response =>
-        val me = response.json
+    client.retrieveProfile(MeApi + accessToken).map { me =>
         (me \ Error).asOpt[JsObject] match {
           case Some(error) =>
             val message = (error \ Message).as[String]
             val errorType = (error \ Type).as[String]
-            Logger.error(
+            logger.error(
               "[securesocial] error retrieving profile information from Facebook. Error type: %s, message: %s".
                 format(errorType, message)
             )
@@ -88,7 +85,7 @@ class FacebookProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e =>
-        Logger.error("[securesocial] error retrieving profile information from Facebook",  e)
+        logger.error("[securesocial] error retrieving profile information from Facebook",  e)
         throw new AuthenticationException()
     }
   }

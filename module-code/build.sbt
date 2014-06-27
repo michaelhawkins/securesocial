@@ -1,14 +1,17 @@
-import play.Project._
-
 name := "SecureSocial"
 
-version := "master-SNAPSHOT"
+version := Common.version
+
+scalaVersion := Common.scalaVersion
 
 libraryDependencies ++= Seq(
   cache,
-  "com.typesafe" %% "play-plugins-util" % "2.2.0",
-  "com.typesafe" %% "play-plugins-mailer" % "2.2.0",
-  "org.mindrot" % "jbcrypt" % "0.3m"
+  ws,
+  "com.typesafe.play.plugins" %% "play-plugins-util" % "2.3.0",
+  "com.typesafe.play.plugins" %% "play-plugins-mailer" % "2.3.0",
+  "org.mindrot" % "jbcrypt" % "0.3m",
+  "org.specs2" %% "specs2" % "2.3.12" % "test",
+  "org.mockito" % "mockito-all" % "1.9.5" % "test"
 )
 
 resolvers ++= Seq(
@@ -19,7 +22,7 @@ organization := "ws.securesocial"
 
 organizationName := "SecureSocial"
 
-organizationHomepage := Some(new URL("http://www.securesocial.ws")) 
+organizationHomepage := Some(new URL("http://www.securesocial.ws"))
 
 publishMavenStyle := true
 
@@ -60,6 +63,4 @@ pomExtra := (
 )
 
 scalacOptions := Seq("-feature", "-deprecation")
-
-playScalaSettings
 

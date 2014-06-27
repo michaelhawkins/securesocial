@@ -16,21 +16,20 @@
  */
 package securesocial.core.providers
 
-import play.api.Logger
 import play.api.libs.json.JsObject
 import securesocial.core._
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 
 /**
  * A Google OAuth2 Provider
  */
 class GoogleProvider(routesService: RoutesService,
-                     httpService: HttpService,
                      cacheService: CacheService,
-                     settings: OAuth2Settings = OAuth2Settings.forProvider(GoogleProvider.Google))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                     client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val UserInfoApi = "https://www.googleapis.com/oauth2/v1/userinfo?access_token="
   val Error = "error"
@@ -47,16 +46,14 @@ class GoogleProvider(routesService: RoutesService,
   override val id = GoogleProvider.Google
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
+    import scala.concurrent.ExecutionContext.Implicits.global
     val accessToken = info.accessToken
-    httpService.url(UserInfoApi + accessToken).get().map {
-      response =>
-        val me = response.json
+      client.retrieveProfile(UserInfoApi + accessToken).map { me =>
         (me \ Error).asOpt[JsObject] match {
           case Some(error) =>
             val message = (error \ Message).as[String]
             val errorType = (error \ Type).as[String]
-            Logger.error("[securesocial] error retrieving profile information from Google. Error type = %s, message = %s"
+            logger.error("[securesocial] error retrieving profile information from Google. Error type = %s, message = %s"
               .format(errorType, message))
             throw new AuthenticationException()
           case _ =>
@@ -71,7 +68,7 @@ class GoogleProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e =>
-        Logger.error( "[securesocial] error retrieving profile information from Google", e)
+        logger.error( "[securesocial] error retrieving profile information from Google", e)
         throw new AuthenticationException()
     }
   }

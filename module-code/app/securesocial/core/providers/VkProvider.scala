@@ -1,20 +1,19 @@
 package securesocial.core.providers
 
-import play.api.Logger
 import play.api.libs.json.JsObject
 import securesocial.core._
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 
 /**
  * A Vk provider
  */
 class VkProvider(routesService: RoutesService,
-                 httpService: HttpService,
                  cacheService: CacheService,
-                 settings: OAuth2Settings = OAuth2Settings.forProvider(VkProvider.Vk))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                 client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val GetProfilesApi = "https://api.vk.com/method/getProfiles?fields=uid,first_name,last_name,photo&access_token="
   val Response = "response"
@@ -29,16 +28,14 @@ class VkProvider(routesService: RoutesService,
   override val id = VkProvider.Vk
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
+    import scala.concurrent.ExecutionContext.Implicits.global
     val accessToken = info.accessToken
-    httpService.url(GetProfilesApi + accessToken).get().map {
-      response =>
-        val json = response.json
+    client.retrieveProfile(GetProfilesApi + accessToken).map { json =>
         (json \ Error).asOpt[JsObject] match {
           case Some(error) =>
             val message = (error \ ErrorMessage).as[String]
             val errorCode = (error \ ErrorCode).as[Int]
-            Logger.error(
+            logger.error(
               s"[securesocial] error retrieving profile information from Vk. Error code = $errorCode, message = $message"
             )
             throw new AuthenticationException()
@@ -53,7 +50,7 @@ class VkProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e: Exception =>
-        Logger.error("[securesocial] error retrieving profile information from VK", e)
+        logger.error("[securesocial] error retrieving profile information from VK", e)
         throw new AuthenticationException()
     }
   }

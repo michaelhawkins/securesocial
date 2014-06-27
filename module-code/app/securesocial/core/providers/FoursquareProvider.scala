@@ -17,21 +17,18 @@
 package securesocial.core.providers
 
 import securesocial.core._
-import play.api.Logger
-import securesocial.core.AuthenticationException
-import scala.Some
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * A Foursquare provider
  *
  */
 class FoursquareProvider(routesService: RoutesService,
-                         httpService: HttpService,
                          cacheService: CacheService,
-                         settings: OAuth2Settings = OAuth2Settings.forProvider(FoursquareProvider.Foursquare))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                         client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val GetAuthenticatedUser = "https://api.foursquare.com/v2/users/self?v=20140404oauth_token=%s"
   val AccessToken = "access_token"
@@ -51,14 +48,11 @@ class FoursquareProvider(routesService: RoutesService,
   override val id = FoursquareProvider.Foursquare
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
-    httpService.url(GetAuthenticatedUser.format(info.accessToken)).get().map {
-      response =>
-        val me = response.json
-
+    import scala.concurrent.ExecutionContext.Implicits.global
+    client.retrieveProfile(GetAuthenticatedUser.format(info.accessToken)).map { me =>
         (me \ "response" \ "user").asOpt[String] match {
           case Some(msg) =>
-            Logger.error("[securesocial] error retrieving profile information from Foursquare. Message = %s".format(msg))
+            logger.error("[securesocial] error retrieving profile information from Foursquare. Message = %s".format(msg))
             throw new AuthenticationException()
           case _ =>
             val userId = (me \ Response \ User \ Id).as[String]
@@ -73,7 +67,7 @@ class FoursquareProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e  =>
-        Logger.error( "[securesocial] error retrieving profile information from Foursquare", e)
+        logger.error( "[securesocial] error retrieving profile information from Foursquare", e)
         throw new AuthenticationException()
     }
   }

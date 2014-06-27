@@ -17,21 +17,18 @@
 package securesocial.core.providers
 
 import securesocial.core._
-import play.api.Logger
-import securesocial.core.AuthenticationException
-import scala.Some
-import scala.concurrent.{ExecutionContext, Future}
-import securesocial.core.services.{RoutesService, CacheService, HttpService}
+import securesocial.core.services.{CacheService, RoutesService}
+
+import scala.concurrent.Future
 
 /**
  * An Instagram provider
  *
  */
 class InstagramProvider(routesService: RoutesService,
-                        httpService: HttpService,
                         cacheService: CacheService,
-                        settings: OAuth2Settings = OAuth2Settings.forProvider(InstagramProvider.Instagram))
-  extends OAuth2Provider(settings, routesService, httpService, cacheService)
+                        client: OAuth2Client)
+  extends OAuth2Provider(routesService, client, cacheService)
 {
   val GetAuthenticatedUser = "https://api.instagram.com/v1/users/self?access_token=%s"
   val AccessToken = "access_token"
@@ -45,14 +42,11 @@ class InstagramProvider(routesService: RoutesService,
   override val id = InstagramProvider.Instagram
 
   def fillProfile(info: OAuth2Info): Future[BasicProfile] = {
-    import ExecutionContext.Implicits.global
-    httpService.url(GetAuthenticatedUser.format(info.accessToken)).get().map {
-      response =>
-        val me = response.json
-
+    import scala.concurrent.ExecutionContext.Implicits.global
+    client.retrieveProfile(GetAuthenticatedUser.format(info.accessToken)).map { me =>
         (me \ "response" \ "user").asOpt[String] match {
           case Some(msg) => {
-            Logger.error(s"[securesocial] error retrieving profile information from Instagram. Message = $msg")
+            logger.error(s"[securesocial] error retrieving profile information from Instagram. Message = $msg")
             throw new AuthenticationException()
           }
           case _ =>
@@ -64,7 +58,7 @@ class InstagramProvider(routesService: RoutesService,
     } recover {
       case e: AuthenticationException => throw e
       case e: Exception =>
-        Logger.error( "[securesocial] error retrieving profile information from Instagram", e)
+        logger.error( "[securesocial] error retrieving profile information from Instagram", e)
         throw new AuthenticationException()
     }
   }
