@@ -1,4 +1,9 @@
 master  -
+		- Switched back to Play 2.3.2 (problems publishing signed artifacts see https://github.com/sbt/sbt-pgp/issues/59)
+		- Added scalariform
+		- Separate creation and storage of mail tokens (thanks @normenmueller)
+		- Upgrade to Play 2.3.3 (thanks @benmccann)
+		- Updated GoogleProvider to use the new Google endpoints (see https://developers.google.com/+/api/auth-migration#timetable)
 		- Code is now compatible with Play 2.3
 		- Added SecureSocial.currentUser to support Websockets
 		- Fixed #429: null pointer exception in UserAware Java API (thanks @mangecoeur)
